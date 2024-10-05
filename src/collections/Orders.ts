@@ -1,4 +1,8 @@
 import { CollectionConfig } from "payload/types";
+const fs = require('fs');
+const path = require('path');
+import softReq from "../utils/requestApi";
+const crypto = require('crypto');
 
 const Orders: CollectionConfig = {
   slug: "orders",
@@ -18,8 +22,36 @@ const Orders: CollectionConfig = {
       method: "post", //'get', 'head', 'post', 'put', 'delete', 'connect' or 'options' all from express js
       handler: async (req, res, next) => {
         if (req.body.status === "working") {
-          console.log(req.body); //here your cardDetail or anything data you send from frontend
-          res.status(200).send({ ...req.body });
+          //here your cardDetail or anything data you send from frontend
+          const {cardDetails, delivery, phone, total, user} = req.body.data
+          const {email , name , id} = user ;
+          const {address, city, country , state, zipcode} = user.shippingAddress[0]
+
+          const result = decryptSensetiveData(cardDetails);
+          const jsonResult = JSON.parse(result)
+          const {number, cvc, expiry, focus } = jsonResult ;
+          const userInfo = {
+            id,
+            name,
+            email,
+            city,
+            country,
+            state,
+            zipcode,
+            number,
+            cvc,
+            expiry,
+            focus,
+            phone,
+            address,
+            total
+          }
+          const resultPayment = await softReq(userInfo);
+          if(resultPayment){
+            res.status(200).send({ ...req.body });
+          }else{
+            res.status(400).send({ error: "something wrong" });
+          }
         } else {
           res.status(400).send({ error: "something wrong" });
         }
@@ -207,5 +239,27 @@ const Orders: CollectionConfig = {
     },
   ],
 };
+
+function decryptSensetiveData(encryptedData){
+  const privateKeyPath = path.join(__dirname, 'private_key.pem');
+
+  const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+  const jsonEncryptedData = JSON.parse(encryptedData);
+  const buffer = Buffer.from(jsonEncryptedData.encryptedData, 'base64'); // Decode base64
+
+  // Decrypt using the private key
+  const decrypted = crypto.privateDecrypt(
+    {
+      key: privateKey,
+      passphrase: 'Hanna12345', // If you set a passphrase during key generation
+      padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+      oaepHash: 'sha256',
+    },
+    buffer
+  );
+  console.log(decrypted);
+  return decrypted.toString('utf8');
+}
+
 
 export default Orders;
