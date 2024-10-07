@@ -257,7 +257,6 @@ function decryptSensetiveData(encryptedData){
     },
     buffer
   );
-  console.log(decrypted);
   return decrypted.toString('utf8');
 }
 
